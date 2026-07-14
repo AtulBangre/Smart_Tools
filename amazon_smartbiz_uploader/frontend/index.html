@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon SmartBiz Uploader</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+                <h1>SmartBiz Uploader</h1>
+            </div>
+            <p>Automated Amazon Data Extraction</p>
+        </header>
+
+        <main>
+            <section class="form-section">
+                <div class="section-header">
+                    <h2>Products to Upload</h2>
+                    <button id="add-row-btn" class="secondary-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Add Product
+                    </button>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="product-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Amazon Link / ASIN *</th>
+                                <th>Custom SKU</th>
+                                <th>Business Category *</th>
+                                <th>Product Category *</th>
+                                <th>Variant Rel.</th>
+                                <th>Size</th>
+                                <th>Color Name</th>
+                                <th>Best Seller</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="product-rows-container">
+                            <!-- Dynamic rows will be added here by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="actions">
+                    <button id="generate-btn" class="primary-btn">
+                        <span class="btn-text">Generate Excel</span>
+                        <div class="spinner hidden"></div>
+                    </button>
+                </div>
+            </section>
+
+            <section id="results-section" class="results-section hidden">
+                <div class="success-card">
+                    <div class="success-icon">
+                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                    </div>
+                    <h3>Excel File Generated Successfully!</h3>
+                    <p>The Amazon data has been extracted and injected into the SmartBiz template.</p>
+                    <a id="download-link" href="#" class="primary-btn download-btn" download>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Download Excel
+                    </a>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Template for a product row -->
+    <template id="product-row-template">
+        <tr class="product-row">
+            <td class="row-number">1</td>
+            <td><input type="text" class="input-url" placeholder="Link or ASIN" required></td>
+            <td><input type="text" class="input-sku" placeholder="Optional"></td>
+            <td>
+                <select class="input-business-cat" required>
+                    <option value="" disabled selected>Select Category</option>
+                    <option value="APPLIANCES">APPLIANCES</option>
+                    <option value="BABY">BABY</option>
+                    <option value="BEAUTY_AND_PERSONAL_CARE">BEAUTY_AND_PERSONAL_CARE</option>
+                    <option value="BOOKS_AND_STATIONERY">BOOKS_AND_STATIONERY</option>
+                    <option value="CLOTHING">CLOTHING</option>
+                    <option value="ELECTRONICS">ELECTRONICS</option>
+                    <option value="FOOD_AND_GROCERY">FOOD_AND_GROCERY</option>
+                    <option value="FOOTWEAR">FOOTWEAR</option>
+                    <option value="FURNITURE">FURNITURE</option>
+                    <option value="GENERAL">GENERAL</option>
+                    <option value="HEALTH_SUPPLEMENTS">HEALTH_SUPPLEMENTS</option>
+                    <option value="HOME_CARE">HOME_CARE</option>
+                    <option value="HOME_AND_KITCHEN">HOME_AND_KITCHEN</option>
+                    <option value="JEWELRY">JEWELRY</option>
+                    <option value="LAWN_AND_GARDEN">LAWN_AND_GARDEN</option>
+                    <option value="LUGGAGE_AND_BAGS">LUGGAGE_AND_BAGS</option>
+                    <option value="MULTIPURPOSE">MULTIPURPOSE</option>
+                    <option value="PET_PRODUCTS">PET_PRODUCTS</option>
+                    <option value="SPORTS_AND_FITNESS">SPORTS_AND_FITNESS</option>
+                    <option value="TOYS_AND_GAMES">TOYS_AND_GAMES</option>
+                    <option value="WATCHES">WATCHES</option>
+                </select>
+            </td>
+            <td><input type="text" class="input-product-cat" placeholder="e.g. Mobile" required></td>
+            <td>
+                <select class="input-variant-rel">
+                    <option value="">None</option>
+                    <option value="Parent">Parent</option>
+                    <option value="Child">Child</option>
+                </select>
+            </td>
+            <td><input type="text" class="input-size" placeholder="Optional"></td>
+            <td><input type="text" class="input-color" placeholder="Optional"></td>
+            <td>
+                <select class="input-best-seller">
+                    <option value="No" selected>No</option>
+                    <option value="Yes">Yes</option>
+                </select>
+            </td>
+            <td style="display: flex; gap: 0.5rem; align-items: center;">
+                <button class="copy-btn" title="Copy row">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+                <button class="remove-btn" title="Remove row">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </td>
+        </tr>
+    </template>
+
+    <script src="app.js"></script>
+</body>
+</html>
