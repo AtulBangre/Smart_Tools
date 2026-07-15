@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = '/api';
 
 // Auth Check
 const token = localStorage.getItem('access_token');

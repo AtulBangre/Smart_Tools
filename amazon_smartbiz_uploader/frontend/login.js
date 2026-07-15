@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('username', username);
             formData.append('password', password);
             
-            const response = await fetch('http://localhost:8000/api/login', {
+            const response = await fetch('/api/login', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'

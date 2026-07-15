@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import List, Optional
@@ -300,6 +301,10 @@ async def delete_sheet(sheet_id: str, current_admin = Depends(get_current_admin)
     await fs.delete(sheet["file_id"])
     await sheets_collection.delete_one({"_id": ObjectId(sheet_id)})
     return {"status": "success"}
+
+# Mount the frontend static files at the root
+frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
+app.mount("/", StaticFiles(directory=frontend_dir, html=True), name="frontend")
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

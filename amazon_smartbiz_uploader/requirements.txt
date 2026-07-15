@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+motor
+playwright
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+openpyxl
+python-dotenv
+groq
+certifi
