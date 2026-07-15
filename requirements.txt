@@ -9,3 +9,4 @@ openpyxl
 python-dotenv
 groq
 certifi
+pandas
