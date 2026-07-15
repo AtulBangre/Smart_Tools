@@ -59,6 +59,9 @@ def generate_smartbiz_excel(scraped_data: list, template_path: str, output_path:
                     # Images start at column 16 (Product Image1) up to 21 (Product Image6)
                     ws.cell(row=current_row, column=16 + idx).value = img_url
             
+            ws.cell(row=current_row, column=23).value = data.get('seo_title', '')
+            ws.cell(row=current_row, column=24).value = data.get('seo_description', '')
+            
             current_row += 1
             
         wb.save(output_path)

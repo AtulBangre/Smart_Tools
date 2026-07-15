@@ -37,7 +37,9 @@ async def scrape_amazon_product(url: str) -> dict:
                 if price_elem:
                     price_text = await price_elem.inner_text()
                     # Clean up: remove commas, extract numbers
-                    details["selling_price"] = re.sub(r'[^\d.]', '', price_text)
+                    raw_price = re.sub(r'[^\d.]', '', price_text)
+                    if raw_price:
+                        details["selling_price"] = str(int(round(float(raw_price))))
             except Exception as e:
                 print(f"Error scraping selling price: {e}")
 
@@ -47,7 +49,9 @@ async def scrape_amazon_product(url: str) -> dict:
                 mrp_elem = await page.query_selector('.a-text-strike')
                 if mrp_elem:
                     mrp_text = await mrp_elem.inner_text()
-                    details["mrp"] = re.sub(r'[^\d.]', '', mrp_text)
+                    raw_mrp = re.sub(r'[^\d.]', '', mrp_text)
+                    if raw_mrp:
+                        details["mrp"] = str(int(round(float(raw_mrp))))
                 
             # Fallback if MRP isn't there, maybe Selling Price is the MRP
                 if not details["mrp"] and details["selling_price"]:
@@ -99,26 +103,35 @@ async def scrape_amazon_product(url: str) -> dict:
 
             # Scrape Description
             try:
-                # Get the HTML list for feature-bullets if available
-                bullets_ul = await page.query_selector('#feature-bullets ul')
+                # Extract individual bullet points to construct clean HTML
+                bullet_elems = await page.query_selector_all('#feature-bullets ul li span.a-list-item')
                 desc_html = ""
                 
-                if bullets_ul:
-                    # Get outer HTML to keep the <ul>...</ul> structure
-                    desc_html = (await bullets_ul.evaluate('el => el.outerHTML')).strip()
-                else:
-                    # Fallback to productDescription if no bullets
+                if bullet_elems:
+                    desc_html = '<ul class="a-unordered-list a-vertical a-spacing-mini">'
+                    for elem in bullet_elems:
+                        text = (await elem.inner_text()).strip()
+                        if text:
+                            addition = f'<li class="a-spacing-mini"><span class="a-list-item">{text}</span></li>'
+                            # +5 for the closing </ul> tag
+                            if len(desc_html) + len(addition) + 5 > 2000:
+                                break
+                            desc_html += addition
+                    desc_html += '</ul>'
+                    
+                    # If nothing was added (e.g. all were empty), reset
+                    if desc_html == '<ul class="a-unordered-list a-vertical a-spacing-mini"></ul>':
+                        desc_html = ""
+                        
+                # Fallback to productDescription if no bullets were found
+                if not desc_html:
                     desc_elem = await page.query_selector('#productDescription')
                     if desc_elem:
-                        # Extract inner text and convert to <br> if it's just a paragraph
                         desc_text = (await desc_elem.inner_text()).strip()
                         desc_html = desc_text.replace('\n', '<br>')
+                        desc_html = desc_html[:2000]
                 
-                # Clean up multiple whitespaces or newlines between tags to save characters
-                desc_html = re.sub(r'>\s+<', '><', desc_html)
-                
-                # Truncate to 2000 chars as per SmartBiz limit
-                details["description"] = desc_html[:2000]
+                details["description"] = desc_html
             except Exception as e:
                 print(f"Error scraping description: {e}")
                 

@@ -4,9 +4,13 @@ from pydantic import BaseModel
 from typing import List
 import uvicorn
 from scraper import scrape_amazon_product
+from seo_generator import generate_seo_tags
 from excel_handler import generate_smartbiz_excel
 from fastapi.responses import FileResponse
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI(title="Amazon SmartBiz Uploader API")
 
@@ -46,6 +50,9 @@ async def generate_excel(request: ScrapeRequest):
             # Scrape product details
             details = await scrape_amazon_product(url)
             
+            # Generate SEO tags
+            seo_data = await generate_seo_tags(details.get("name", ""), details.get("description", ""))
+            
             # Combine with user inputs
             product_data = {
                 "custom_sku": item.custom_sku,
@@ -59,7 +66,9 @@ async def generate_excel(request: ScrapeRequest):
                 "mrp": details.get("mrp", ""),
                 "selling_price": details.get("selling_price", ""),
                 "description": details.get("description", ""),
-                "images": details.get("images", [])
+                "images": details.get("images", []),
+                "seo_title": seo_data.get("seo_title", ""),
+                "seo_description": seo_data.get("seo_description", "")
             }
             scraped_data.append(product_data)
         
