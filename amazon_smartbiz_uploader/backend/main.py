@@ -1,95 +1,197 @@
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
+from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import uvicorn
+import os
+import io
+from datetime import datetime, timezone
+from bson import ObjectId
+
+from database import admin_collection, drafts_collection, sheets_collection, get_fs
+from auth import verify_password, create_access_token, get_current_admin
+from upload_handler import process_draft_upload
 from scraper import scrape_amazon_product
 from seo_generator import generate_seo_tags
 from excel_handler import generate_smartbiz_excel
-from fastapi.responses import FileResponse
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 app = FastAPI(title="Amazon SmartBiz Uploader API")
 
-# Add CORS middleware to allow frontend to communicate
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for local dev
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-class ProductRequest(BaseModel):
+# Helper to fix ObjectId serialization
+def serialize_doc(doc):
+    if doc and "_id" in doc:
+        doc["_id"] = str(doc["_id"])
+    return doc
+
+# --- AUTH ROUTES ---
+@app.post("/api/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    admin = await admin_collection.find_one({"username": form_data.username})
+    if not admin or not verify_password(form_data.password, admin["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+        
+    access_token = create_access_token(data={"sub": admin["username"]})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# --- DRAFT ROUTES ---
+class DraftItemCreate(BaseModel):
     url: str
-    custom_sku: str
-    business_category: str
-    product_category: str
+    custom_sku: str = ""
+    business_category: str = "GENERAL"
+    product_category: str = ""
     variant_relationship: str = ""
     size: str = ""
     color_name: str = ""
     best_seller: str = "No"
 
-class ScrapeRequest(BaseModel):
-    products: List[ProductRequest]
+@app.get("/api/draft")
+async def get_drafts(current_admin = Depends(get_current_admin)):
+    cursor = drafts_collection.find({"username": current_admin["username"]})
+    items = await cursor.to_list(length=1000)
+    return [serialize_doc(i) for i in items]
+
+@app.post("/api/draft/item")
+async def add_draft_item(item: DraftItemCreate, current_admin = Depends(get_current_admin)):
+    doc = item.model_dump()
+    doc["username"] = current_admin["username"]
+    result = await drafts_collection.insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    return doc
+
+@app.delete("/api/draft/item/{item_id}")
+async def delete_draft_item(item_id: str, current_admin = Depends(get_current_admin)):
+    result = await drafts_collection.delete_one({"_id": ObjectId(item_id), "username": current_admin["username"]})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"status": "success"}
+
+@app.delete("/api/draft/clear")
+async def clear_draft(current_admin = Depends(get_current_admin)):
+    await drafts_collection.delete_many({"username": current_admin["username"]})
+    return {"status": "success"}
+
+@app.post("/api/draft/upload-excel")
+async def upload_excel_draft(file: UploadFile = File(...), current_admin = Depends(get_current_admin)):
+    return await process_draft_upload(file, drafts_collection, current_admin["username"])
+
+# --- GENERATE & HISTORY ROUTES ---
+class GenerateRequest(BaseModel):
+    sheet_name: str
 
 @app.post("/api/generate")
-async def generate_excel(request: ScrapeRequest):
+async def generate_excel(request: GenerateRequest, current_admin = Depends(get_current_admin)):
+    # 1. Fetch draft items
+    cursor = drafts_collection.find({"username": current_admin["username"]})
+    items = await cursor.to_list(length=1000)
+    
+    if not items:
+        raise HTTPException(status_code=400, detail="Your draft is empty.")
+
+    scraped_data = []
+    for item in items:
+        url = item.get("url", "")
+        if not url.startswith("http"):
+            url = f"https://www.amazon.in/dp/{url}"
+            
+        details = await scrape_amazon_product(url)
+        seo_data = await generate_seo_tags(details.get("name", ""), details.get("description", ""))
+        
+        product_data = {
+            "custom_sku": item.get("custom_sku", ""),
+            "business_category": item.get("business_category", ""),
+            "product_category": item.get("product_category", ""),
+            "variant_relationship": item.get("variant_relationship", ""),
+            "size": item.get("size", ""),
+            "color_name": item.get("color_name", ""),
+            "best_seller": item.get("best_seller", ""),
+            "name": details.get("name", ""),
+            "mrp": details.get("mrp", ""),
+            "selling_price": details.get("selling_price", ""),
+            "description": details.get("description", ""),
+            "images": details.get("images", []),
+            "seo_title": seo_data.get("seo_title", ""),
+            "seo_description": seo_data.get("seo_description", "")
+        }
+        scraped_data.append(product_data)
+        
+    # 2. Generate Excel in memory
+    template_path = os.path.join(os.path.dirname(__file__), "smartbiz_bulk_upload_template_v5 (2).xlsx")
+    temp_output_path = os.path.join(os.path.dirname(__file__), f"temp_{ObjectId()}.xlsx")
+    
+    success = generate_smartbiz_excel(scraped_data, template_path, temp_output_path)
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to generate Excel file")
+        
+    # 3. Save to GridFS
+    fs = get_fs()
+    with open(temp_output_path, "rb") as f:
+        file_id = await fs.upload_from_stream(
+            f"{request.sheet_name}.xlsx", 
+            f,
+            metadata={"contentType": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}
+        )
+        
+    os.remove(temp_output_path)
+    
+    # 4. Save history record
+    record = {
+        "username": current_admin["username"],
+        "sheet_name": request.sheet_name,
+        "file_id": file_id,
+        "date_generated": datetime.now(timezone.utc).isoformat(),
+        "item_count": len(items)
+    }
+    await sheets_collection.insert_one(record)
+    
+    # 5. Clear draft
+    await drafts_collection.delete_many({"username": current_admin["username"]})
+    
+    return {"status": "success", "file_id": str(file_id)}
+
+@app.get("/api/sheets/history")
+async def get_history(current_admin = Depends(get_current_admin)):
+    cursor = sheets_collection.find({"username": current_admin["username"]}).sort("date_generated", -1)
+    history = await cursor.to_list(length=100)
+    for h in history:
+        h["_id"] = str(h["_id"])
+        h["file_id"] = str(h["file_id"])
+    return history
+
+@app.get("/api/sheets/download/{file_id}")
+async def download_sheet(file_id: str):
+    fs = get_fs()
     try:
-        scraped_data = []
-        for item in request.products:
-            # Check if it's an ASIN or URL
-            url = item.url
-            if not url.startswith("http"):
-                # Construct amazon link if only ASIN is provided
-                url = f"https://www.amazon.in/dp/{url}"
-            
-            # Scrape product details
-            details = await scrape_amazon_product(url)
-            
-            # Generate SEO tags
-            seo_data = await generate_seo_tags(details.get("name", ""), details.get("description", ""))
-            
-            # Combine with user inputs
-            product_data = {
-                "custom_sku": item.custom_sku,
-                "business_category": item.business_category,
-                "product_category": item.product_category,
-                "variant_relationship": item.variant_relationship,
-                "size": item.size,
-                "color_name": item.color_name,
-                "best_seller": item.best_seller,
-                "name": details.get("name", ""),
-                "mrp": details.get("mrp", ""),
-                "selling_price": details.get("selling_price", ""),
-                "description": details.get("description", ""),
-                "images": details.get("images", []),
-                "seo_title": seo_data.get("seo_title", ""),
-                "seo_description": seo_data.get("seo_description", "")
-            }
-            scraped_data.append(product_data)
+        grid_out = await fs.open_download_stream(ObjectId(file_id))
+        content = await grid_out.read()
         
-        # Generate the excel file
-        template_path = "/Volumes/Fdata/dev/smartbiz_bulk_upload_template_v5 (2).xlsx"
-        output_path = "/Volumes/Fdata/dev/amazon_smartbiz_uploader/backend/Smartbiz_Upload_Generated.xlsx"
-        
-        success = generate_smartbiz_excel(scraped_data, template_path, output_path)
-        
-        if success and os.path.exists(output_path):
-            return FileResponse(
-                path=output_path, 
-                filename="Smartbiz_Upload_Generated.xlsx",
-                media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-            )
-        else:
-            raise HTTPException(status_code=500, detail="Failed to generate Excel file")
-            
+        return StreamingResponse(
+            io.BytesIO(content), 
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={grid_out.filename}"}
+        )
     except Exception as e:
-        print(f"Error generating excel: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=404, detail="File not found")
+
+@app.delete("/api/sheets/{sheet_id}")
+async def delete_sheet(sheet_id: str, current_admin = Depends(get_current_admin)):
+    sheet = await sheets_collection.find_one({"_id": ObjectId(sheet_id), "username": current_admin["username"]})
+    if not sheet:
+        raise HTTPException(status_code=404, detail="Sheet record not found")
+        
+    fs = get_fs()
+    await fs.delete(sheet["file_id"])
+    await sheets_collection.delete_one({"_id": ObjectId(sheet_id)})
+    return {"status": "success"}
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
