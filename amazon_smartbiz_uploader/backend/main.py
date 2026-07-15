@@ -80,6 +80,57 @@ async def clear_draft(current_admin = Depends(get_current_admin)):
     await drafts_collection.delete_many({"username": current_admin["username"]})
     return {"status": "success"}
 
+@app.get("/api/draft/template")
+async def download_draft_template():
+    from openpyxl import Workbook
+    from openpyxl.worksheet.datavalidation import DataValidation
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Draft Template"
+    
+    headers = [
+        "Amazon Link / ASIN", "Custom SKU", "Business Category", 
+        "Product Category", "Variant Relationship", "Size", 
+        "Color Name", "Best Seller"
+    ]
+    ws.append(headers)
+    
+    # Setup Dropdowns (Data Validation)
+    # Business Category (Column C)
+    categories = '"APPLIANCES,BABY,BEAUTY_AND_PERSONAL_CARE,BOOKS_AND_STATIONERY,CLOTHING,ELECTRONICS,FOOD_AND_GROCERY,FOOTWEAR,FURNITURE,GENERAL,HEALTH_SUPPLEMENTS,HOME_CARE,HOME_AND_KITCHEN,JEWELRY,LAWN_AND_GARDEN,LUGGAGE_AND_BAGS,MULTIPURPOSE,PET_PRODUCTS,SPORTS_AND_FITNESS,TOYS_AND_GAMES,WATCHES"'
+    dv_cat = DataValidation(type="list", formula1=categories, allow_blank=True)
+    dv_cat.error = 'Your entry is not in the list'
+    dv_cat.errorTitle = 'Invalid Entry'
+    dv_cat.prompt = 'Please select from the list'
+    dv_cat.promptTitle = 'Select Category'
+    ws.add_data_validation(dv_cat)
+    dv_cat.add("C2:C1000")
+    
+    # Variant Relationship (Column E)
+    dv_var = DataValidation(type="list", formula1='"Parent,Child"', allow_blank=True)
+    ws.add_data_validation(dv_var)
+    dv_var.add("E2:E1000")
+    
+    # Best Seller (Column H)
+    dv_best = DataValidation(type="list", formula1='"Yes,No"', allow_blank=True)
+    ws.add_data_validation(dv_best)
+    dv_best.add("H2:H1000")
+    
+    # Adjust column widths slightly for better UX
+    for col in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
+        ws.column_dimensions[col].width = 20
+    
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    
+    return StreamingResponse(
+        buffer, 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=Draft_Upload_Template.xlsx"}
+    )
+
 @app.post("/api/draft/upload-excel")
 async def upload_excel_draft(file: UploadFile = File(...), current_admin = Depends(get_current_admin)):
     return await process_draft_upload(file, drafts_collection, current_admin["username"])

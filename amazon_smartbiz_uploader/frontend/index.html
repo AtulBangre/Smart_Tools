@@ -14,8 +14,8 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .flex-row { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
-        .upload-card { background: #f8f9fa; padding: 1.5rem; border-radius: 8px; border: 1px dashed #ccc; margin-bottom: 2rem; }
-        .add-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; background: #fff; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 2rem; }
+        .upload-card { background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px dashed var(--border-color); margin-bottom: 2rem; }
+        .add-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; background: var(--card-bg); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 2rem; }
         .add-form input, .add-form select { width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; }
         .draft-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #eee; }
         .sheet-name-group { display: flex; gap: 1rem; align-items: center; }
@@ -46,11 +46,17 @@
                 
                 <!-- Bulk Upload Section -->
                 <div class="upload-card">
-                    <h3>Bulk Upload (Excel Template)</h3>
-                    <p style="margin-bottom: 1rem; color: #666; font-size: 0.9rem;">Upload a filled template to instantly populate your draft.</p>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; color: var(--text-primary);">Bulk Upload (Excel Template)</h3>
+                        <button id="download-template-btn" class="secondary-btn" style="font-size: 0.9rem;">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px; vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            Download Template
+                        </button>
+                    </div>
+                    <p style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.9rem;">Upload a filled template to instantly populate your draft.</p>
                     <div class="flex-row">
                         <input type="file" id="excel-upload" accept=".xlsx, .xls">
-                        <button id="upload-btn" class="secondary-btn">Upload to Draft</button>
+                        <button id="upload-btn" class="primary-btn">Upload to Draft</button>
                     </div>
                 </div>
 
@@ -62,10 +68,28 @@
                     <div>
                         <label>Business Cat *</label>
                         <select id="add-business-cat" required>
-                            <option value="GENERAL">GENERAL</option>
-                            <option value="ELECTRONICS">ELECTRONICS</option>
+                            <option value="" disabled selected>Select Category</option>
+                            <option value="APPLIANCES">APPLIANCES</option>
+                            <option value="BABY">BABY</option>
+                            <option value="BEAUTY_AND_PERSONAL_CARE">BEAUTY_AND_PERSONAL_CARE</option>
+                            <option value="BOOKS_AND_STATIONERY">BOOKS_AND_STATIONERY</option>
                             <option value="CLOTHING">CLOTHING</option>
-                            <!-- Add other options as needed -->
+                            <option value="ELECTRONICS">ELECTRONICS</option>
+                            <option value="FOOD_AND_GROCERY">FOOD_AND_GROCERY</option>
+                            <option value="FOOTWEAR">FOOTWEAR</option>
+                            <option value="FURNITURE">FURNITURE</option>
+                            <option value="GENERAL">GENERAL</option>
+                            <option value="HEALTH_SUPPLEMENTS">HEALTH_SUPPLEMENTS</option>
+                            <option value="HOME_CARE">HOME_CARE</option>
+                            <option value="HOME_AND_KITCHEN">HOME_AND_KITCHEN</option>
+                            <option value="JEWELRY">JEWELRY</option>
+                            <option value="LAWN_AND_GARDEN">LAWN_AND_GARDEN</option>
+                            <option value="LUGGAGE_AND_BAGS">LUGGAGE_AND_BAGS</option>
+                            <option value="MULTIPURPOSE">MULTIPURPOSE</option>
+                            <option value="PET_PRODUCTS">PET_PRODUCTS</option>
+                            <option value="SPORTS_AND_FITNESS">SPORTS_AND_FITNESS</option>
+                            <option value="TOYS_AND_GAMES">TOYS_AND_GAMES</option>
+                            <option value="WATCHES">WATCHES</option>
                         </select>
                     </div>
                     <div><label>Product Cat *</label><input type="text" id="add-product-cat" required></div>

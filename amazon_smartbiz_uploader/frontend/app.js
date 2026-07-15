@@ -130,6 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
             loadDrafts();
         }
     });
+    
+    // Download Draft Template
+    const downloadTemplateBtn = document.getElementById('download-template-btn');
+    if (downloadTemplateBtn) {
+        downloadTemplateBtn.addEventListener('click', () => {
+            window.open(`${API_BASE}/draft/template`, '_blank');
+        });
+    }
 
     // Upload Excel Draft
     uploadBtn.addEventListener('click', async () => {
