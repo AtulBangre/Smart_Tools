@@ -1,16 +1,7 @@
 const API_BASE = '/api';
 
-// Auth Check
-const token = localStorage.getItem('access_token');
-if (!token) {
-    window.location.href = 'login.html';
-}
-
-const headers = {
-    'Authorization': `Bearer ${token}`
-};
+const headers = {};
 const jsonHeaders = {
-    ...headers,
     'Content-Type': 'application/json'
 };
 
@@ -32,12 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const historyTableBody = document.getElementById('history-table-body');
 
-    // Logout
-    logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem('access_token');
-        window.location.href = 'login.html';
-    });
-
     // Tabs
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
@@ -58,7 +43,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function loadDrafts() {
         try {
             const res = await fetch(`${API_BASE}/draft`, { headers });
-            if (res.status === 401) return logout();
             const items = await res.json();
             
             draftTableBody.innerHTML = '';
@@ -200,7 +184,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 pollingInterval = setInterval(async () => {
                     try {
                         const statusRes = await fetch(`${API_BASE}/jobs/${data.job_id}`, { headers });
-                        if (statusRes.status === 401) return logout();
                         const statusData = await statusRes.json();
                         
                         if (statusData.status === 'processing') {
@@ -303,12 +286,6 @@ document.addEventListener('DOMContentLoaded', () => {
             spinner.classList.add('hidden');
         }
     }
-    
-    function logout() {
-        localStorage.removeItem('access_token');
-        window.location.href = 'login.html';
-    }
-
     // Initial load
     loadDrafts();
 });
