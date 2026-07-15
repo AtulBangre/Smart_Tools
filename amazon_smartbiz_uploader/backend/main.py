@@ -129,7 +129,7 @@ async def upload_excel_draft(file: UploadFile = File(...)):
 class GenerateRequest(BaseModel):
     sheet_name: str
 
-async def process_generation_job(job_id: str, items: list, sheet_name: str, current_admin: dict):
+async def process_generation_job(job_id: str, items: list, sheet_name: str):
     try:
         scraped_data = []
         total_items = len(items)
@@ -238,7 +238,7 @@ async def generate_excel(request: GenerateRequest, background_tasks: BackgroundT
     job_id = str(result.inserted_id)
 
     # Trigger background task
-    background_tasks.add_task(process_generation_job, job_id, items, request.sheet_name, current_admin)
+    background_tasks.add_task(process_generation_job, job_id, items, request.sheet_name)
     
     return {"status": "processing", "job_id": job_id}
 
