@@ -90,7 +90,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 })
             });
             
-            const data = await response.json();
+            let data;
+            try {
+                data = await response.json();
+            } catch (e) {
+                // If the server returns HTML (like a 500 error page from Railway)
+                throw new Error("Server error: Did you set the RECOVERY_KEY in Railway?");
+            }
             
             if (!response.ok) {
                 throw new Error(data.detail || 'Reset failed');
