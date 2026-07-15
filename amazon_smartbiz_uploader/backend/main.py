@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from bson import ObjectId
 
 from database import admin_collection, drafts_collection, sheets_collection, jobs_collection, get_fs
-from auth import verify_password, create_access_token, get_current_admin
+from auth import verify_password, create_access_token, get_current_admin, get_password_hash
 from upload_handler import process_draft_upload
 from scraper import scrape_amazon_product
 from seo_generator import generate_seo_tags
@@ -43,6 +43,23 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
         
     access_token = create_access_token(data={"sub": admin["username"]})
     return {"access_token": access_token, "token_type": "bearer"}
+
+class ForgotPasswordRequest(BaseModel):
+    recovery_key: str
+    new_password: str
+
+@app.post("/api/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest):
+    expected_key = os.getenv("RECOVERY_KEY")
+    if not expected_key:
+        raise HTTPException(status_code=500, detail="Recovery key not configured on server")
+        
+    if request.recovery_key != expected_key:
+        raise HTTPException(status_code=403, detail="Invalid recovery key")
+        
+    hashed_password = get_password_hash(request.new_password)
+    await admin_collection.update_many({}, {"$set": {"hashed_password": hashed_password}})
+    return {"status": "success", "message": "Password reset successfully"}
 
 # --- DRAFT ROUTES ---
 class DraftItemCreate(BaseModel):

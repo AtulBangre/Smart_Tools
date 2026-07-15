@@ -69,6 +69,24 @@
                     <input type="password" id="password" required>
                 </div>
                 <button type="submit" class="primary-btn" style="width: 100%; margin-top: 1rem;">Login</button>
+                <div style="text-align: center; margin-top: 1rem;">
+                    <a href="#" id="show-forgot-btn" style="color: var(--primary-color); text-decoration: none; font-size: 0.9rem;">Forgot Password?</a>
+                </div>
+            </form>
+
+            <form id="forgot-form" style="display: none;">
+                <div class="form-group">
+                    <label for="recovery-key">Recovery Key</label>
+                    <input type="password" id="recovery-key" required placeholder="Enter secret recovery key">
+                </div>
+                <div class="form-group">
+                    <label for="new-password">New Password</label>
+                    <input type="password" id="new-password" required minlength="6" placeholder="Enter new password">
+                </div>
+                <button type="submit" class="primary-btn" style="width: 100%; margin-top: 1rem;">Reset Password</button>
+                <div style="text-align: center; margin-top: 1rem;">
+                    <a href="#" id="show-login-btn" style="color: #666; text-decoration: none; font-size: 0.9rem;">Back to Login</a>
+                </div>
             </form>
         </div>
     </div>
