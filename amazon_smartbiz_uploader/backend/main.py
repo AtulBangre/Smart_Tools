@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from bson import ObjectId
 
 from database import admin_collection, drafts_collection, sheets_collection, jobs_collection, get_fs
-from auth import verify_password, create_access_token, get_current_admin, get_password_hash
 from upload_handler import process_draft_upload
 from scraper import scrape_amazon_product
 from seo_generator import generate_seo_tags
@@ -34,33 +33,6 @@ def serialize_doc(doc):
         doc["_id"] = str(doc["_id"])
     return doc
 
-# --- AUTH ROUTES ---
-@app.post("/api/login")
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    admin = await admin_collection.find_one({"username": form_data.username})
-    if not admin or not verify_password(form_data.password, admin["hashed_password"]):
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
-        
-    access_token = create_access_token(data={"sub": admin["username"]})
-    return {"access_token": access_token, "token_type": "bearer"}
-
-class ForgotPasswordRequest(BaseModel):
-    recovery_key: str
-    new_password: str
-
-@app.post("/api/forgot-password")
-async def forgot_password(request: ForgotPasswordRequest):
-    expected_key = os.getenv("RECOVERY_KEY")
-    if not expected_key:
-        raise HTTPException(status_code=500, detail="Recovery key not configured on server")
-        
-    if request.recovery_key != expected_key:
-        raise HTTPException(status_code=403, detail="Invalid recovery key")
-        
-    hashed_password = get_password_hash(request.new_password)
-    await admin_collection.update_many({}, {"$set": {"hashed_password": hashed_password}})
-    return {"status": "success", "message": "Password reset successfully"}
-
 # --- DRAFT ROUTES ---
 class DraftItemCreate(BaseModel):
     url: str
@@ -73,29 +45,29 @@ class DraftItemCreate(BaseModel):
     best_seller: str = "No"
 
 @app.get("/api/draft")
-async def get_drafts(current_admin = Depends(get_current_admin)):
-    cursor = drafts_collection.find({"username": current_admin["username"]})
+async def get_drafts():
+    cursor = drafts_collection.find({"username": "public_user"})
     items = await cursor.to_list(length=1000)
     return [serialize_doc(i) for i in items]
 
 @app.post("/api/draft/item")
-async def add_draft_item(item: DraftItemCreate, current_admin = Depends(get_current_admin)):
+async def add_draft_item(item: DraftItemCreate):
     doc = item.model_dump()
-    doc["username"] = current_admin["username"]
+    doc["username"] = "public_user"
     result = await drafts_collection.insert_one(doc)
     doc["_id"] = str(result.inserted_id)
     return doc
 
 @app.delete("/api/draft/item/{item_id}")
-async def delete_draft_item(item_id: str, current_admin = Depends(get_current_admin)):
-    result = await drafts_collection.delete_one({"_id": ObjectId(item_id), "username": current_admin["username"]})
+async def delete_draft_item(item_id: str):
+    result = await drafts_collection.delete_one({"_id": ObjectId(item_id), "username": "public_user"})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Item not found")
     return {"status": "success"}
 
 @app.delete("/api/draft/clear")
-async def clear_draft(current_admin = Depends(get_current_admin)):
-    await drafts_collection.delete_many({"username": current_admin["username"]})
+async def clear_draft():
+    await drafts_collection.delete_many({"username": "public_user"})
     return {"status": "success"}
 
 @app.get("/api/draft/template")
@@ -150,8 +122,8 @@ async def download_draft_template():
     )
 
 @app.post("/api/draft/upload-excel")
-async def upload_excel_draft(file: UploadFile = File(...), current_admin = Depends(get_current_admin)):
-    return await process_draft_upload(file, drafts_collection, current_admin["username"])
+async def upload_excel_draft(file: UploadFile = File(...)):
+    return await process_draft_upload(file, drafts_collection, "public_user")
 
 # --- GENERATE & HISTORY ROUTES ---
 class GenerateRequest(BaseModel):
@@ -220,7 +192,7 @@ async def process_generation_job(job_id: str, items: list, sheet_name: str, curr
         
         # 4. Save history record
         record = {
-            "username": current_admin["username"],
+            "username": "public_user",
             "sheet_name": sheet_name,
             "file_id": file_id,
             "date_generated": datetime.now(timezone.utc).isoformat(),
@@ -229,7 +201,7 @@ async def process_generation_job(job_id: str, items: list, sheet_name: str, curr
         await sheets_collection.insert_one(record)
         
         # 5. Clear draft
-        await drafts_collection.delete_many({"username": current_admin["username"]})
+        await drafts_collection.delete_many({"username": "public_user"})
         
         # 6. Mark job completed
         await jobs_collection.update_one(
@@ -245,9 +217,9 @@ async def process_generation_job(job_id: str, items: list, sheet_name: str, curr
         )
 
 @app.post("/api/generate")
-async def generate_excel(request: GenerateRequest, background_tasks: BackgroundTasks, current_admin = Depends(get_current_admin)):
+async def generate_excel(request: GenerateRequest, background_tasks: BackgroundTasks):
     # 1. Fetch draft items
-    cursor = drafts_collection.find({"username": current_admin["username"]})
+    cursor = drafts_collection.find({"username": "public_user"})
     items = await cursor.to_list(length=1000)
     
     if not items:
@@ -255,7 +227,7 @@ async def generate_excel(request: GenerateRequest, background_tasks: BackgroundT
 
     # Create job in db
     job_record = {
-        "username": current_admin["username"],
+        "username": "public_user",
         "sheet_name": request.sheet_name,
         "status": "processing",
         "processed_count": 0,
@@ -271,8 +243,8 @@ async def generate_excel(request: GenerateRequest, background_tasks: BackgroundT
     return {"status": "processing", "job_id": job_id}
 
 @app.get("/api/jobs/{job_id}")
-async def get_job_status(job_id: str, current_admin = Depends(get_current_admin)):
-    job = await jobs_collection.find_one({"_id": ObjectId(job_id), "username": current_admin["username"]})
+async def get_job_status(job_id: str):
+    job = await jobs_collection.find_one({"_id": ObjectId(job_id), "username": "public_user"})
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     
@@ -285,8 +257,8 @@ async def get_job_status(job_id: str, current_admin = Depends(get_current_admin)
     }
 
 @app.get("/api/sheets/history")
-async def get_history(current_admin = Depends(get_current_admin)):
-    cursor = sheets_collection.find({"username": current_admin["username"]}).sort("date_generated", -1)
+async def get_history():
+    cursor = sheets_collection.find({"username": "public_user"}).sort("date_generated", -1)
     history = await cursor.to_list(length=100)
     for h in history:
         h["_id"] = str(h["_id"])
@@ -309,8 +281,8 @@ async def download_sheet(file_id: str):
         raise HTTPException(status_code=404, detail="File not found")
 
 @app.delete("/api/sheets/{sheet_id}")
-async def delete_sheet(sheet_id: str, current_admin = Depends(get_current_admin)):
-    sheet = await sheets_collection.find_one({"_id": ObjectId(sheet_id), "username": current_admin["username"]})
+async def delete_sheet(sheet_id: str):
+    sheet = await sheets_collection.find_one({"_id": ObjectId(sheet_id), "username": "public_user"})
     if not sheet:
         raise HTTPException(status_code=404, detail="Sheet record not found")
         
