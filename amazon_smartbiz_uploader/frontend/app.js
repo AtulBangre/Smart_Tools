@@ -173,12 +173,19 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Generate Excel
+    const inlineDownloadBtn = document.getElementById('inline-download-btn');
+    const jobProgressText = document.getElementById('job-progress');
+    let pollingInterval = null;
+
     generateBtn.addEventListener('click', async () => {
         const sheetName = sheetNameInput.value.trim();
         if (!sheetName) return alert("Please enter a Final Sheet Name.");
         if (draftCountSpan.textContent === "0") return alert("Your draft is empty.");
         
         setLoading(true);
+        jobProgressText.style.display = 'inline-block';
+        jobProgressText.textContent = "Starting job...";
+        inlineDownloadBtn.style.display = 'none';
         
         try {
             const res = await fetch(`${API_BASE}/generate`, {
@@ -188,19 +195,50 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             const data = await res.json();
-            if (res.ok) {
-                alert("Sheet generated successfully and saved to History!");
-                sheetNameInput.value = '';
-                loadDrafts();
-                // Switch to history tab
-                document.querySelector('[data-target="history-tab"]').click();
+            if (res.ok && data.job_id) {
+                // Start polling
+                pollingInterval = setInterval(async () => {
+                    try {
+                        const statusRes = await fetch(`${API_BASE}/jobs/${data.job_id}`, { headers });
+                        if (statusRes.status === 401) return logout();
+                        const statusData = await statusRes.json();
+                        
+                        if (statusData.status === 'processing') {
+                            jobProgressText.textContent = `Processing: ${statusData.processed_count} / ${statusData.total_count}`;
+                        } else if (statusData.status === 'completed') {
+                            clearInterval(pollingInterval);
+                            setLoading(false);
+                            jobProgressText.textContent = `Completed ${statusData.total_count} items!`;
+                            
+                            // Setup inline download button
+                            inlineDownloadBtn.style.display = 'inline-block';
+                            inlineDownloadBtn.onclick = () => {
+                                window.open(`${API_BASE}/sheets/download/${statusData.file_id}`, '_blank');
+                            };
+                            
+                            sheetNameInput.value = '';
+                            loadDrafts();
+                            loadHistory(); // Load history in background
+                            // Not switching tabs anymore based on user feedback
+                        } else if (statusData.status === 'failed') {
+                            clearInterval(pollingInterval);
+                            setLoading(false);
+                            jobProgressText.textContent = `Job failed.`;
+                            alert("Job failed: " + statusData.error);
+                        }
+                    } catch (pollErr) {
+                        console.error("Polling error:", pollErr);
+                    }
+                }, 2000);
             } else {
                 alert("Error: " + data.detail);
+                setLoading(false);
+                jobProgressText.style.display = 'none';
             }
         } catch (e) {
-            alert("Error generating sheet: " + e.message);
-        } finally {
+            alert("Error starting job: " + e.message);
             setLoading(false);
+            jobProgressText.style.display = 'none';
         }
     });
 

@@ -129,10 +129,14 @@
                         <label><strong>Final Sheet Name:</strong></label>
                         <input type="text" id="sheet-name" placeholder="e.g. Batch_15_July">
                     </div>
-                    <button id="generate-btn" class="primary-btn">
-                        <span class="btn-text">Generate Excel</span>
-                        <div class="spinner hidden"></div>
-                    </button>
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <span id="job-progress" style="color: var(--text-secondary); font-size: 0.9rem; font-weight: 500; display: none;">Processing: 0/0</span>
+                        <button id="inline-download-btn" class="primary-btn" style="display: none; background-color: #2ecc71;">Download Sheet</button>
+                        <button id="generate-btn" class="primary-btn">
+                            <span class="btn-text">Generate Excel</span>
+                            <div class="spinner hidden"></div>
+                        </button>
+                    </div>
                 </div>
             </div>
 
